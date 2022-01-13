@@ -61,10 +61,26 @@ static void *flashing_thread(void *arg){
     return NULL;
 }
 
+//bt interupt
+static int val_led =0;
+
+
+static void bt_int(void *arg){
+     printf("Pressed BTN%d\n", (int)arg);
+    val_led = 1-val_led;
+}
+
 int main(void){
     /*Déclaration de la LED*/
     gpio_t Led = GPIO_PIN(PORT_B ,5);
     gpio_init( Led, GPIO_OUT );
+
+    /*Déclaration du bouton*/
+    gpio_t Button = GPIO_PIN(PORT_B ,3);
+    if(gpio_init_int (Button, GPIO_IN_PU, GPIO_RISING , bt_int,(void*)0) < 0){
+        puts("[FAILED] init BTN!");
+        return 1;
+    }
 
     /*Création des thread*/
     p_led= thread_create(led_stack, sizeof(led_stack), THREAD_PRIORITY_MAIN - 1, 0, flashing_thread, NULL, "led thread");
@@ -74,7 +90,14 @@ int main(void){
     msg1.content.value = 1;
     msg_send(&msg1, p_led);
 
-    while(1);
+    while(1){
+           if( val_led != 0){
+               gpio_write(Led,1);
+           }
+            else{
+              gpio_write(Led, 0);
+            }   
+    }
 
     return 0;
 }
