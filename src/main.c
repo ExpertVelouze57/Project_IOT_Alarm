@@ -17,6 +17,7 @@
 
 #define DELAY           (500000U)
 
+/*Ajout d'un bouton*/
 
 /**/
 kernel_pid_t p_led;
