@@ -20,7 +20,7 @@
 
 /**/
 kernel_pid_t p_led;
-
+//on attaque le catpteur de température 
 
 /* Allocate the writer stack here */
 static char led_stack[THREAD_STACKSIZE_MAIN];
