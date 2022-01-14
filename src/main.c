@@ -10,6 +10,10 @@
 #include "thread.h"
 #include "msg.h"
 
+/*header for temp sensor*/
+#include "bmx280.h"
+#include "bmx280_params.h"
+
 #include "board.h"
 
 /* TODO: Add the cayenne_lpp header here */
@@ -18,6 +22,8 @@
 #define DELAY_led_off          (3000000U)
 #define DELAY_led_on           (100000U)
 #define DELAY_led_wait           (500000U)
+
+#define DELAY_temp           (30000000U) //30s
 
 #define DELAY           (500000U)
 #define NOTE_1           (2500U)
@@ -29,15 +35,21 @@
 
 
 /**/
-kernel_pid_t p_led, p_alarm;
+kernel_pid_t p_led, p_alarm, p_bmx;
 //on attaque le catpteur de température 
 
 /* Allocate the writer stack here */
 static char led_stack[THREAD_STACKSIZE_MAIN];
 static char alarm_stack[THREAD_STACKSIZE_MAIN];
+static char bmx_stack[THREAD_STACKSIZE_MAIN];
 
 static msg_t led_queue[4];
 static msg_t alarm_queue[4];
+
+//bt interupt
+static bool erreur = false;
+static bmx280_t my_bmp;
+static int bt_panic =0, fire =0;
 
 /*Déclaration of function thread*/
 static void *flashing_thread(void *arg){
@@ -149,9 +161,58 @@ static void *alarm_thread(void *arg){
     return NULL;
 }
 
-//bt interupt
-static bool erreur = false;
-//static int val_led =0;
+#define T_MAX_ALARM 60
+#define T_MIN_ALARM 25
+
+static void *monitor_bmx_thread(void *arg){
+    (void) arg;
+    xtimer_usleep(1);
+
+    xtimer_ticks32_t bmx_time = xtimer_now();
+
+    /*Déclaration des varibale et mise en place d'un old et new pour calcul de difference*/
+    int16_t temp_old;
+    int16_t temp = bmx280_read_temperature(&my_bmp)/100;
+    int16_t coef;
+
+    msg_t msg;
+
+
+    while (1) {
+        temp_old = temp;
+        temp = bmx280_read_temperature(&my_bmp)/100;
+
+        if(temp > T_MAX_ALARM){
+            /*Trop chaud -> alarm*/
+            fire =1;
+            msg.content.value= 1;
+            msg_send(&msg, p_alarm);
+        }
+        else if(temp<= T_MIN_ALARM && bt_panic != 1){
+            fire = 0;
+            msg.content.value= 0;
+            msg_send(&msg, p_alarm);
+        }
+
+        if( temp == temp_old ){
+             coef = 0;
+        }
+        else{
+            coef = temp - temp_old;
+        }
+       
+        if( coef > 5 ){
+            fire = 1;
+            msg.content.value= 1;
+            msg_send(&msg, p_alarm);
+        }
+        printf("%d    %d     %d\n", temp, temp_old,coef);
+        xtimer_periodic_wakeup(&bmx_time, DELAY_temp); 
+    }
+
+    
+    return NULL;
+}
 
 
 static void bt_user(void *arg){
@@ -164,6 +225,8 @@ static void bt_user(void *arg){
 
     msg.content.value= 0;
     msg_send(&msg, p_alarm);
+    bt_panic = 0;
+    fire = 0;
     
     xtimer_usleep(500);
     gpio_irq_enable(B_temp); 
@@ -179,6 +242,7 @@ static void bt_emergency(void *arg){
 
     msg.content.value= 1;
     msg_send(&msg, p_alarm);
+    bt_panic = 1;
     
     xtimer_usleep(500);
     gpio_irq_enable(B_temp); 
@@ -202,10 +266,26 @@ int main(void){
         return 1;
     }
 
+    /*intitalisation bme */
+    switch (bmx280_init(&my_bmp, &bmx280_params[0])) {
+        case BMX280_ERR_BUS:
+            puts("[Error] Something went wrong when using the I2C bus");
+            erreur = true;
+            return 1;
+        case BMX280_ERR_NODEV:
+            puts("[Error] Unable to communicate with any BMX280 device");
+            erreur = true;
+            return 1;
+        default:
+            /* all good -> do nothing */
+            break;
+    }
 
     /*Création des thread*/
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
     p_led= thread_create(led_stack, sizeof(led_stack), THREAD_PRIORITY_MAIN - 1, 0, flashing_thread, NULL, "led thread");
+    p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
+    
 
     /*Déclaration est initialisation de la variable message*/
 
