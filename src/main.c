@@ -14,6 +14,9 @@
 #include "bmx280.h"
 #include "bmx280_params.h"
 
+#include "pir.h"
+#include "pir_params.h"
+
 #include "periph/adc.h"
 
 #include "board.h"
@@ -25,7 +28,11 @@
 #define DELAY_led_on           (100000U)
 #define DELAY_led_wait           (500000U)
 
+#define DELAY_Pir            (100000U)
+#define TIME_PRESENCE        (10) //Periode en seconde ou on veut savoir si il y a quelq'un
+
 #define DELAY_temp           (30000000U) //30s
+
 
 #define DELAY           (500000U)
 #define NOTE_1           (2500U)
@@ -37,14 +44,17 @@
 
 
 /**/
-kernel_pid_t p_led, p_alarm, p_bmx, p_flame;
-//on attaque le catpteur de température 
+kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir;
+
+
+
 
 /* Allocate the writer stack here */
 static char led_stack[THREAD_STACKSIZE_MAIN];
 static char alarm_stack[THREAD_STACKSIZE_MAIN];
 static char bmx_stack[THREAD_STACKSIZE_MAIN];
 static char flame_stack[THREAD_STACKSIZE_MAIN];
+static char pir_stack[THREAD_STACKSIZE_MAIN];
 
 static msg_t led_queue[4];
 static msg_t alarm_queue[4];
@@ -52,7 +62,8 @@ static msg_t alarm_queue[4];
 //bt interupt
 static bool erreur = false;
 static bmx280_t my_bmp;
-static int bt_panic =0, fire =0, flame =0;
+static pir_t dev;
+static int bt_panic =0, fire =0, flame =0, PIR_min_10 = 0;
 
 /*Déclaration of function thread*/
 static void *flashing_thread(void *arg){
@@ -251,6 +262,44 @@ static void *monitor_flame_thread(void *arg){
     return NULL;
 }
 
+static void *monitor_PIR_thread(void *arg){
+    (void) arg;
+    /*Pause de 3 s avant de demarer*/
+    xtimer_usleep(3000000);
+
+    xtimer_ticks32_t PIR_time = xtimer_now();
+
+    uint32_t time_1 = xtimer_now_usec();;
+    uint32_t time_2;
+    int presence = 0, presence_avant =0;
+    
+    while (1) {
+        presence =  (pir_get_status(&dev) == PIR_STATUS_INACTIVE ? 0 : 1);
+        if(presence == 1){
+            time_1 = xtimer_now_usec();
+            presence_avant = presence;
+            PIR_min_10 = 1;
+        }
+        else if(presence_avant == 1){
+            time_2 = xtimer_now_usec();
+
+            if((time_2 - time_1) < (TIME_PRESENCE)* 1000000){
+                PIR_min_10 = 1;
+            }
+            else{
+                PIR_min_10 = 0;
+                presence_avant = 0;
+            }
+
+        }
+
+        xtimer_periodic_wakeup(&PIR_time, DELAY_Pir);
+    }
+    
+    return NULL;
+}
+
+
 static void bt_user(void *arg){
     printf("Pressed User%d\n", (int)arg); 
     gpio_t B_temp= GPIO_PIN(PORT_A ,10);
@@ -293,6 +342,11 @@ static void bt_emergency(void *arg){
 int main(void){
     /**/
     xtimer_ticks32_t time_main = xtimer_now();
+
+    pir_params_t my_pir_parm;
+    my_pir_parm.gpio = GPIO_PIN(PORT_B ,9);
+    my_pir_parm.active_high = true;
+
     msg_t msg_main;
 
     /*Déclaration des boutons*/
@@ -330,7 +384,14 @@ int main(void){
         printf("Successfully initialized ADC_LINE(0)\n");  
     }
 
-    
+    //PIR motion sensor init
+    if (pir_init(&dev, &my_pir_parm) == 0) {
+        puts("[OK]\n");
+    }
+    else {
+        puts("[Failfed]");
+        erreur = true;
+    }
  
 
     /*Création des thread*/
@@ -338,16 +399,24 @@ int main(void){
     p_led= thread_create(led_stack, sizeof(led_stack), THREAD_PRIORITY_MAIN - 1, 0, flashing_thread, NULL, "led thread");
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
     p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
+    p_pir= thread_create(pir_stack, sizeof(pir_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_PIR_thread, NULL, "PIr thread");
         
+
+
 
    //fin initialisation envoie statue led
     msg_main.content.value = ((erreur == true) ? 2 : 1);
     msg_send(&msg_main, p_led);
 
     /*Déclaration est initialisation de la variable message*/
-
     while(1){
-        xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
+        
+
+
+        printf("Presence : %d\n", PIR_min_10);
+
+
+       xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
     }
 
     return 0;
