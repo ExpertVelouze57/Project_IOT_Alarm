@@ -14,6 +14,9 @@
 #include "bmx280.h"
 #include "bmx280_params.h"
 
+#include "pir.h"
+#include "pir_params.h"
+
 #include "periph/adc.h"
 
 #include "board.h"
@@ -25,7 +28,11 @@
 #define DELAY_led_on           (100000U)
 #define DELAY_led_wait           (500000U)
 
+#define DELAY_Pir            (100000U)
+#define TIME_PRESENCE        (10) //Periode en seconde ou on veut savoir si il y a quelq'un
+
 #define DELAY_temp           (30000000U) //30s
+
 
 #define DELAY           (500000U)
 #define NOTE_1           (2500U)
@@ -37,14 +44,26 @@
 
 
 /**/
-kernel_pid_t p_led, p_alarm, p_bmx, p_flame;
-//on attaque le catpteur de température 
+kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir;
+
+/* Declare globally the loramac descriptor */
+extern semtech_loramac_t loramac;
+static cayenne_lpp_t lpp;
+
+
+//Data LoRa et app
+static const uint8_t deveui[LORAMAC_DEVEUI_LEN] = { 0x7c, 0xd0, 0x79, 0x4e, 0x00, 0xe3, 0xcf, 0x3f};
+static const uint8_t appeui[LORAMAC_APPEUI_LEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static const uint8_t appkey[LORAMAC_APPKEY_LEN] = { 0x8B, 0x79, 0xA3, 0x46, 0xE1, 0x60, 0x79, 0x66, 0x09, 0x7A, 0x47, 0x4E, 0x45, 0x23, 0x1A, 0xAD};
+
 
 /* Allocate the writer stack here */
+static char sender_stack[THREAD_STACKSIZE_MAIN];
 static char led_stack[THREAD_STACKSIZE_MAIN];
 static char alarm_stack[THREAD_STACKSIZE_MAIN];
 static char bmx_stack[THREAD_STACKSIZE_MAIN];
 static char flame_stack[THREAD_STACKSIZE_MAIN];
+static char pir_stack[THREAD_STACKSIZE_MAIN];
 
 static msg_t led_queue[4];
 static msg_t alarm_queue[4];
@@ -52,7 +71,8 @@ static msg_t alarm_queue[4];
 //bt interupt
 static bool erreur = false;
 static bmx280_t my_bmp;
-static int bt_panic =0, fire =0, flame =0;
+static pir_t dev;
+static int bt_panic =0, fire =0, flame =0, PIR_min_10 = 0, alarm_enable =0;
 
 /*Déclaration of function thread*/
 static void *flashing_thread(void *arg){
@@ -94,7 +114,6 @@ static void *flashing_thread(void *arg){
         
         else if(valeur_clin == 2){
             /*Alumer fixe == erreur*/
-            printf("herre\n");
             gpio_write(led,1);
             xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
 
@@ -132,9 +151,10 @@ static void *alarm_thread(void *arg){
         }
            
         if(temp == 1){
+            alarm_enable = 1;
             /*active la led urgence*/
             msg_led.content.value =0;
-             msg_send(&msg_led, p_led);
+            msg_send(&msg_led, p_led);
 
 
             temps= 0;
@@ -251,6 +271,44 @@ static void *monitor_flame_thread(void *arg){
     return NULL;
 }
 
+static void *monitor_PIR_thread(void *arg){
+    (void) arg;
+    /*Pause de 3 s avant de demarer*/
+    xtimer_usleep(3000000);
+
+    xtimer_ticks32_t PIR_time = xtimer_now();
+
+    uint32_t time_1 = xtimer_now_usec();;
+    uint32_t time_2;
+    int presence = 0, presence_avant =0;
+    
+    while (1) {
+        presence =  (pir_get_status(&dev) == PIR_STATUS_INACTIVE ? 0 : 1);
+        if(presence == 1){
+            time_1 = xtimer_now_usec();
+            presence_avant = presence;
+            PIR_min_10 = 1;
+        }
+        else if(presence_avant == 1){
+            time_2 = xtimer_now_usec();
+
+            if((time_2 - time_1) < (TIME_PRESENCE)* 1000000){
+                PIR_min_10 = 1;
+            }
+            else{
+                PIR_min_10 = 0;
+                presence_avant = 0;
+            }
+
+        }
+
+        xtimer_periodic_wakeup(&PIR_time, DELAY_Pir);
+    }
+    
+    return NULL;
+}
+
+
 static void bt_user(void *arg){
     printf("Pressed User%d\n", (int)arg); 
     gpio_t B_temp= GPIO_PIN(PORT_A ,10);
@@ -269,6 +327,7 @@ static void bt_user(void *arg){
     bt_panic = 0;
     fire = 0;
     flame=0;
+    alarm_enable =0;
     
     xtimer_usleep(500);
     gpio_irq_enable(B_temp); 
@@ -290,9 +349,51 @@ static void bt_emergency(void *arg){
     gpio_irq_enable(B_temp); 
 }
 
+
+static void *sender(void *arg){
+    (void) arg;
+
+    int16_t temperature;
+
+    while (1) {
+        /* wait 20 secs */
+        xtimer_sleep(5);
+        
+        temperature = bmx280_read_temperature(&my_bmp);        
+
+
+        /* TODO: prepare cayenne lpp payload here */
+
+        cayenne_lpp_add_digital_input(&lpp, 0, fire);
+        cayenne_lpp_add_temperature(&lpp, 1,(float)temperature/100);
+        cayenne_lpp_add_digital_input(&lpp, 2, PIR_min_10);
+        cayenne_lpp_add_digital_input(&lpp,3, flame);
+        cayenne_lpp_add_digital_input(&lpp,4,bt_panic);
+
+        printf("Sending LPP data\n");
+
+        /* send the LoRaWAN message */
+        uint8_t ret = semtech_loramac_send(&loramac, lpp.buffer, lpp.cursor);
+        if (ret != SEMTECH_LORAMAC_TX_DONE) {
+            printf("Cannot send lpp message, ret code: %d\n", ret);
+        }
+
+        /* TODO: clear buffer once done here */
+        cayenne_lpp_reset(&lpp);
+    }
+
+    /* this should never be reached */
+    return NULL;
+}
+
 int main(void){
     /**/
     xtimer_ticks32_t time_main = xtimer_now();
+
+    pir_params_t my_pir_parm;
+    my_pir_parm.gpio = GPIO_PIN(PORT_B ,9);
+    my_pir_parm.active_high = true;
+
     msg_t msg_main;
 
     /*Déclaration des boutons*/
@@ -330,24 +431,66 @@ int main(void){
         printf("Successfully initialized ADC_LINE(0)\n");  
     }
 
+    //PIR motion sensor init
+    if (pir_init(&dev, &my_pir_parm) == 0) {
+        puts("[OK]\n");
+    }
+    else {
+        puts("[Failfed]");
+        erreur = true;
+    }
+
+    /* use a fast datarate so we don't use the physical layer too much */
+    semtech_loramac_set_dr(&loramac, 5);
+
+    /* set the LoRaWAN keys */
+    semtech_loramac_set_deveui(&loramac, deveui);
+    semtech_loramac_set_appeui(&loramac, appeui);
+    semtech_loramac_set_appkey(&loramac, appkey);
+
+    /* start the OTAA join procedure */
     
- 
+    puts("Starting join procedure");
+    while(1){
+        if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
+            puts("Join procedure failed");
+            erreur = true;
+        }
+        else{
+            puts("Join procedure succeeded");
+            break;
+        }
+        
+
+        xtimer_usleep(500000);
+    }
 
     /*Création des thread*/
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
     p_led= thread_create(led_stack, sizeof(led_stack), THREAD_PRIORITY_MAIN - 1, 0, flashing_thread, NULL, "led thread");
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
     p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
+    p_pir= thread_create(pir_stack, sizeof(pir_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_PIR_thread, NULL, "PIr thread");
+
+    thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
+
         
+
+
 
    //fin initialisation envoie statue led
     msg_main.content.value = ((erreur == true) ? 2 : 1);
     msg_send(&msg_main, p_led);
 
     /*Déclaration est initialisation de la variable message*/
-
     while(1){
-        xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
+        
+
+
+        //printf("Presence : %d\n", PIR_min_10);
+
+
+       xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
     }
 
     return 0;
