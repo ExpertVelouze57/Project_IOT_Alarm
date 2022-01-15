@@ -46,10 +46,19 @@
 /**/
 kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir;
 
+/* Declare globally the loramac descriptor */
+extern semtech_loramac_t loramac;
+static cayenne_lpp_t lpp;
 
+
+//Data LoRa et app
+static const uint8_t deveui[LORAMAC_DEVEUI_LEN] = { 0x7c, 0xd0, 0x79, 0x4e, 0x00, 0xe3, 0xcf, 0x3f};
+static const uint8_t appeui[LORAMAC_APPEUI_LEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static const uint8_t appkey[LORAMAC_APPKEY_LEN] = { 0x8B, 0x79, 0xA3, 0x46, 0xE1, 0x60, 0x79, 0x66, 0x09, 0x7A, 0x47, 0x4E, 0x45, 0x23, 0x1A, 0xAD};
 
 
 /* Allocate the writer stack here */
+static char sender_stack[THREAD_STACKSIZE_MAIN];
 static char led_stack[THREAD_STACKSIZE_MAIN];
 static char alarm_stack[THREAD_STACKSIZE_MAIN];
 static char bmx_stack[THREAD_STACKSIZE_MAIN];
@@ -63,7 +72,7 @@ static msg_t alarm_queue[4];
 static bool erreur = false;
 static bmx280_t my_bmp;
 static pir_t dev;
-static int bt_panic =0, fire =0, flame =0, PIR_min_10 = 0;
+static int bt_panic =0, fire =0, flame =0, PIR_min_10 = 0, alarm_enable =0;
 
 /*Déclaration of function thread*/
 static void *flashing_thread(void *arg){
@@ -105,7 +114,6 @@ static void *flashing_thread(void *arg){
         
         else if(valeur_clin == 2){
             /*Alumer fixe == erreur*/
-            printf("herre\n");
             gpio_write(led,1);
             xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
 
@@ -143,9 +151,10 @@ static void *alarm_thread(void *arg){
         }
            
         if(temp == 1){
+            alarm_enable = 1;
             /*active la led urgence*/
             msg_led.content.value =0;
-             msg_send(&msg_led, p_led);
+            msg_send(&msg_led, p_led);
 
 
             temps= 0;
@@ -318,6 +327,7 @@ static void bt_user(void *arg){
     bt_panic = 0;
     fire = 0;
     flame=0;
+    alarm_enable =0;
     
     xtimer_usleep(500);
     gpio_irq_enable(B_temp); 
@@ -337,6 +347,43 @@ static void bt_emergency(void *arg){
     
     xtimer_usleep(500);
     gpio_irq_enable(B_temp); 
+}
+
+
+static void *sender(void *arg){
+    (void) arg;
+
+    int16_t temperature;
+
+    while (1) {
+        /* wait 20 secs */
+        xtimer_sleep(5);
+        
+        temperature = bmx280_read_temperature(&my_bmp);        
+
+
+        /* TODO: prepare cayenne lpp payload here */
+
+        cayenne_lpp_add_digital_input(&lpp, 0, fire);
+        cayenne_lpp_add_temperature(&lpp, 1,(float)temperature/100);
+        cayenne_lpp_add_digital_input(&lpp, 2, PIR_min_10);
+        cayenne_lpp_add_digital_input(&lpp,3, flame);
+        cayenne_lpp_add_digital_input(&lpp,4,bt_panic);
+
+        printf("Sending LPP data\n");
+
+        /* send the LoRaWAN message */
+        uint8_t ret = semtech_loramac_send(&loramac, lpp.buffer, lpp.cursor);
+        if (ret != SEMTECH_LORAMAC_TX_DONE) {
+            printf("Cannot send lpp message, ret code: %d\n", ret);
+        }
+
+        /* TODO: clear buffer once done here */
+        cayenne_lpp_reset(&lpp);
+    }
+
+    /* this should never be reached */
+    return NULL;
 }
 
 int main(void){
@@ -392,7 +439,31 @@ int main(void){
         puts("[Failfed]");
         erreur = true;
     }
- 
+
+    /* use a fast datarate so we don't use the physical layer too much */
+    semtech_loramac_set_dr(&loramac, 5);
+
+    /* set the LoRaWAN keys */
+    semtech_loramac_set_deveui(&loramac, deveui);
+    semtech_loramac_set_appeui(&loramac, appeui);
+    semtech_loramac_set_appkey(&loramac, appkey);
+
+    /* start the OTAA join procedure */
+    
+    puts("Starting join procedure");
+    while(1){
+        if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
+            puts("Join procedure failed");
+            erreur = true;
+        }
+        else{
+            puts("Join procedure succeeded");
+            break;
+        }
+        
+
+        xtimer_usleep(500000);
+    }
 
     /*Création des thread*/
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
@@ -400,6 +471,9 @@ int main(void){
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
     p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
     p_pir= thread_create(pir_stack, sizeof(pir_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_PIR_thread, NULL, "PIr thread");
+
+    thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
+
         
 
 
@@ -413,7 +487,7 @@ int main(void){
         
 
 
-        printf("Presence : %d\n", PIR_min_10);
+        //printf("Presence : %d\n", PIR_min_10);
 
 
        xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
