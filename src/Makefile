@@ -16,6 +16,8 @@ CFLAGS += -DBMX280_PARAM_I2C_ADDR=0x77
 USEMODULE += xtimer
 USEMODULE += sx126x_stm32wl
 
+FEATURES_REQUIRED = periph_adc
+
 USEPKG += semtech-loramac
 USEMODULE += auto_init_loramac
 USEPKG += cayenne-lpp

@@ -14,6 +14,8 @@
 #include "bmx280.h"
 #include "bmx280_params.h"
 
+#include "periph/adc.h"
+
 #include "board.h"
 
 /* TODO: Add the cayenne_lpp header here */
@@ -35,13 +37,14 @@
 
 
 /**/
-kernel_pid_t p_led, p_alarm, p_bmx;
+kernel_pid_t p_led, p_alarm, p_bmx, p_flame;
 //on attaque le catpteur de température 
 
 /* Allocate the writer stack here */
 static char led_stack[THREAD_STACKSIZE_MAIN];
 static char alarm_stack[THREAD_STACKSIZE_MAIN];
 static char bmx_stack[THREAD_STACKSIZE_MAIN];
+static char flame_stack[THREAD_STACKSIZE_MAIN];
 
 static msg_t led_queue[4];
 static msg_t alarm_queue[4];
@@ -49,7 +52,7 @@ static msg_t alarm_queue[4];
 //bt interupt
 static bool erreur = false;
 static bmx280_t my_bmp;
-static int bt_panic =0, fire =0;
+static int bt_panic =0, fire =0, flame =0;
 
 /*Déclaration of function thread*/
 static void *flashing_thread(void *arg){
@@ -64,7 +67,7 @@ static void *flashing_thread(void *arg){
     msg_init_queue(led_queue, 4);
 
     msg_t msg;
-    int valeur_clin =0;
+    int valeur_clin =-1;
 
     while(1){
         if(msg_try_receive(&msg) != -1){
@@ -72,10 +75,11 @@ static void *flashing_thread(void *arg){
         }
            
         if(valeur_clin == 0){
-            /*Cas off*/
+            /*Cas Incendi*/
+            gpio_write(led,1);
+            xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
             gpio_write(led,0);
             xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
-
         }
 
         else if(valeur_clin == 1){
@@ -98,6 +102,7 @@ static void *flashing_thread(void *arg){
 
         else{
             /*Cas default off*/
+            printf("Led default\n");
             gpio_write(led,0);
             xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
         }
@@ -119,7 +124,7 @@ static void *alarm_thread(void *arg){
     
     int temps;
     int temp=0;
-    msg_t msg;
+    msg_t msg, msg_led;
 
     while (1) {
         if(msg_try_receive(&msg) != -1){
@@ -127,6 +132,11 @@ static void *alarm_thread(void *arg){
         }
            
         if(temp == 1){
+            /*active la led urgence*/
+            msg_led.content.value =0;
+             msg_send(&msg_led, p_led);
+
+
             temps= 0;
             while(temps < 400){
                 xtimer_periodic_wakeup(&pwm, NOTE_1/2);      
@@ -214,6 +224,32 @@ static void *monitor_bmx_thread(void *arg){
     return NULL;
 }
 
+static void *monitor_flame_thread(void *arg){
+    (void) arg;
+    xtimer_usleep(1);
+
+    xtimer_ticks32_t flame_time = xtimer_now();
+
+    msg_t msg;
+
+
+    int xvalue=0; 
+    while(1){
+        xvalue = adc_sample(ADC_LINE(0), ADC_RES_10BIT);
+        
+        if(xvalue < 1000){
+            printf("Flame detected !!! \n");
+            flame = 1;
+            msg.content.value= 1;
+            msg_send(&msg, p_alarm);
+        }
+
+
+        xtimer_periodic_wakeup(&flame_time, DELAY);
+    }
+    
+    return NULL;
+}
 
 static void bt_user(void *arg){
     printf("Pressed User%d\n", (int)arg); 
@@ -223,10 +259,16 @@ static void bt_user(void *arg){
     /*Desactivation interuption == eviter les cliques multiple*/
     gpio_irq_disable(B_temp);
 
+    msg.content.value = ((erreur == true) ? 2 : 1);
+    msg_send(&msg, p_led);
+
     msg.content.value= 0;
     msg_send(&msg, p_alarm);
+
+
     bt_panic = 0;
     fire = 0;
+    flame=0;
     
     xtimer_usleep(500);
     gpio_irq_enable(B_temp); 
@@ -251,19 +293,18 @@ static void bt_emergency(void *arg){
 int main(void){
     /**/
     xtimer_ticks32_t time_main = xtimer_now();
+    msg_t msg_main;
 
     /*Déclaration des boutons*/
     gpio_t B_user = GPIO_PIN(PORT_A ,10);
     if(gpio_init_int (B_user, GPIO_IN_PU, GPIO_RISING , bt_user,(void*)0) < 0){
         puts("[FAILED] init BTN!");
         erreur = true;
-        return 1;
     }
     gpio_t B_emergency = GPIO_PIN(PORT_B ,14);
     if(gpio_init_int (B_emergency, GPIO_IN_PU, GPIO_RISING , bt_emergency,(void*)0) < 0){
         puts("[FAILED] init BTN!");
         erreur = true;
-        return 1;
     }
 
     /*intitalisation bme */
@@ -271,21 +312,37 @@ int main(void){
         case BMX280_ERR_BUS:
             puts("[Error] Something went wrong when using the I2C bus");
             erreur = true;
-            return 1;
+            break;
         case BMX280_ERR_NODEV:
             puts("[Error] Unable to communicate with any BMX280 device");
             erreur = true;
-            return 1;
+            break;
         default:
             /* all good -> do nothing */
             break;
     }
 
+    //Initialaisation flam
+    if (adc_init(0) < 0) {
+        printf("Initialization of ADC_LINE(0) failed\n");
+        erreur = true;
+    } else {
+        printf("Successfully initialized ADC_LINE(0)\n");  
+    }
+
+    
+ 
+
     /*Création des thread*/
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
     p_led= thread_create(led_stack, sizeof(led_stack), THREAD_PRIORITY_MAIN - 1, 0, flashing_thread, NULL, "led thread");
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
-    
+    p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
+        
+
+   //fin initialisation envoie statue led
+    msg_main.content.value = ((erreur == true) ? 2 : 1);
+    msg_send(&msg_main, p_led);
 
     /*Déclaration est initialisation de la variable message*/
 
