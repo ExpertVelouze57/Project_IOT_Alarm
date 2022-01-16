@@ -47,11 +47,6 @@
 #define STEPS               (1000U)
 
 
- 
-#define LORAMAC_RECV_MSG_QUEUE                   (4U)
-static msg_t _loramac_recv_queue[LORAMAC_RECV_MSG_QUEUE];
-static char recv_stack[THREAD_STACKSIZE_DEFAULT];
-
 /**/
 kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir, p_sender;
 
@@ -428,8 +423,8 @@ static void *sender(void *arg){
                 break;
         }
 
-        printf("Next send in %d min\n", temps/60)
-;        for(int i=0; i < temps; i++){
+        printf("Next send in %d min\n", temps/60);
+        for(int i=0; i < temps; i++){
             if(msg_try_receive(&msg) != -1){
                 mode = msg.content.value;
                 
@@ -447,24 +442,24 @@ static void *sender(void *arg){
     return NULL;
 }
 
-static void *recv(void *arg)
-{
-     msg_init_queue(_loramac_recv_queue, LORAMAC_RECV_MSG_QUEUE);
-
-    (void)arg;
+void recv(void){
     while (1) {
         /* blocks until something is received */
-        switch (semtech_loramac_recv(&loramac)) {
-            case SEMTECH_LORAMAC_RX_DATA:
-                loramac.rx_data.payload[loramac.rx_data.payload_len] = 0;
-                printf("Data received: %s, port: %d\n",(char *)loramac.rx_data.payload, loramac.rx_data.port);
-                break;
+        if(semtech_loramac_recv(&loramac) == SEMTECH_LORAMAC_RX_DATA) {
+            loramac.rx_data.payload[loramac.rx_data.payload_len] = 0;
+            printf("Data received: %s, port: %d\n",(char *)loramac.rx_data.payload, loramac.rx_data.port);
 
-            default:
-                break;
+            /*
+                formatage de donnée pour 1bytes to alarm,, 2 bytes to time send normal et 2 bytes to time send emergncy
+
+
+            */
+
+
+            break;
         }
+        xtimer_usleep(100000);
     }
-  return NULL;
 }
 
 int main(void){
@@ -557,10 +552,8 @@ int main(void){
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
     p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
     p_pir= thread_create(pir_stack, sizeof(pir_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_PIR_thread, NULL, "PIr thread");
-    thread_create(recv_stack, sizeof(recv_stack),THREAD_PRIORITY_MAIN - 1, 0, recv, NULL, "recv thread");
-
-
     p_sender = thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
+
 
     //fin initialisation envoie statue led
     msg_main.content.value = ((erreur == true) ? 2 : 1);
@@ -570,7 +563,7 @@ int main(void){
     while(1){
             
 
-        //printf("Presence : %d\n", PIR_min_10);
+        recv();
 
 
        xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
