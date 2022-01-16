@@ -22,13 +22,11 @@
 #include "board.h"
 
 #include "Include/buzzer.h"
+#include "Include/led.h"
 
 /* TODO: Add the cayenne_lpp header here */
 #include "cayenne_lpp.h"
 
-#define DELAY_led_off           (3000000U)
-#define DELAY_led_on            (100000U)
-#define DELAY_led_wait          (500000U)
 
 #define DELAY_Pir               (100000U)
 #define TIME_PRESENCE           (10) //Periode en seconde ou on veut savoir si il y a quelq'un
@@ -54,7 +52,6 @@ static const uint8_t deveui[LORAMAC_DEVEUI_LEN] = { 0x7c, 0xd0, 0x79, 0x4e, 0x00
 static const uint8_t appeui[LORAMAC_APPEUI_LEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 static const uint8_t appkey[LORAMAC_APPKEY_LEN] = { 0x8B, 0x79, 0xA3, 0x46, 0xE1, 0x60, 0x79, 0x66, 0x09, 0x7A, 0x47, 0x4E, 0x45, 0x23, 0x1A, 0xAD};
 
-
 /* Allocate the writer stack here */
 static char sender_stack[THREAD_STACKSIZE_MAIN];
 static char led_stack[THREAD_STACKSIZE_MAIN];
@@ -79,16 +76,18 @@ static void *flashing_thread(void *arg){
     xtimer_ticks32_t clin = xtimer_now();
 
     /*Initialisation de la led*/
-    gpio_t led = GPIO_PIN(PORT_B ,5);
+    gpio_t led = GPIO_PIN(Led_port ,Led_pin);
     gpio_init( led, GPIO_OUT );
 
     /*Initialisation du protocole de communication*/
     msg_init_queue(led_queue, 4);
-
     msg_t msg;
+
+    //Déclaration variable local
     int valeur_clin =-1;
 
     while(1){
+        //Recherche nouveau status
         if(msg_try_receive(&msg) != -1){
            valeur_clin = msg.content.value;   
         }
@@ -96,17 +95,17 @@ static void *flashing_thread(void *arg){
         if(valeur_clin == 0){
             /*Cas Incendi*/
             gpio_write(led,1);
-            xtimer_periodic_wakeup(&clin, DELAY_led_wait/3); 
+            xtimer_periodic_wakeup(&clin, DELAY_LED_INC); 
             gpio_write(led,0);
-            xtimer_periodic_wakeup(&clin, DELAY_led_wait/3); 
+            xtimer_periodic_wakeup(&clin, DELAY_LED_INC); 
         }
 
         else if(valeur_clin == 1){
             /*Clignottement lent == tt va bien*/
             gpio_write(led,1);
-            xtimer_periodic_wakeup(&clin, DELAY_led_on); 
+            xtimer_periodic_wakeup(&clin, DELAY_LED_NORM_on); 
             gpio_write(led,0);
-            xtimer_periodic_wakeup(&clin, DELAY_led_off); 
+            xtimer_periodic_wakeup(&clin, DELAY_LED_NORM_off); 
 
             
         }
@@ -114,7 +113,7 @@ static void *flashing_thread(void *arg){
         else if(valeur_clin == 2){
             /*Alumer fixe == erreur*/
             gpio_write(led,1);
-            xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
+            xtimer_periodic_wakeup(&clin, DELAY_LED_ERR); 
 
         }
 
@@ -122,7 +121,7 @@ static void *flashing_thread(void *arg){
             /*Cas default off*/
             printf("Led default\n");
             gpio_write(led,0);
-            xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
+            xtimer_periodic_wakeup(&clin, DELAY_LED_OFF); 
         }
     }
 
@@ -468,8 +467,7 @@ void recv(void){
 
 int main(void){
     /**/
-    xtimer_ticks32_t time_main = xtimer_now();
-
+    
     pir_params_t my_pir_parm;
     my_pir_parm.gpio = GPIO_PIN(PORT_B ,9);
     my_pir_parm.active_high = true;
@@ -565,12 +563,7 @@ int main(void){
 
     /*Déclaration est initialisation de la variable message*/
     while(1){
-            
-
         recv();
-
-
-       xtimer_periodic_wakeup(&time_main, DELAY_led_wait);
     }
 
     return 0;
