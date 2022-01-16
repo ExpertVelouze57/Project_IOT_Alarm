@@ -4,12 +4,12 @@
 #include "xtimer.h"
 
 /*Header for thread and comunication*/
+#include "board.h"
 #include "thread.h"
 #include "msg.h"
 
-/*header for temp sensor*/
+#define DEBUG_MODE 1
 
-#include "board.h"
 
 #include "Include/buzzer.h"
 #include "Include/led.h"
@@ -103,7 +103,6 @@ static void *flashing_thread(void *arg){
 
         else{
             /*Cas default off*/
-            printf("Led default\n");
             gpio_write(led,0);
             xtimer_periodic_wakeup(&clin, DELAY_LED_OFF); 
         }
@@ -152,6 +151,14 @@ static void *alarm_thread(void *arg){
                 msg_send(&msg_led, p_sender);
 
                 premiere_fois = 1;
+
+                if(DEBUG_MODE == 1){
+                    puts("ALARM ON");
+                    puts("LED passe in alarm mode ");
+                    printf("flamme: %s\n", flame== 1 ? "oui" : "non" );
+                    printf("Bouton panic : %s\n", bt_panic == 1 ? "oui" : "non" );
+                    printf("Presence personne : %s\n\n", PIR_min_10 == 1 ? "oui" : "non" );
+                }
             }
             
 
@@ -256,7 +263,6 @@ static void *monitor_flamme_thread(void *arg){
         xvalue = adc_sample(ADC_LINE(FLAMME_PORT), PRECISION_ADC);
         
         if(xvalue < FLAMME_SEUIL_DETEC){
-            printf("Flame detected !!! \n");
             flame = 1;
             msg.content.value= 1;
             msg_send(&msg, p_alarm);
@@ -312,7 +318,17 @@ static void *monitor_PIR_thread(void *arg){
 
 static void bt_user(void *arg){
     (void) arg;
-    printf("Pressed User\n"); 
+
+    if(DEBUG_MODE == 1){
+        puts("Pressed User\n");
+    }
+
+    if(flame == 1 || bt_panic == 1 || flame == 1){
+        if(DEBUG_MODE == 1){
+            puts("Retour à la normal\n");
+        }
+    }
+ 
     gpio_t B_temp= GPIO_PIN(BT_USER_PORT ,BT_USER_PIN);
     msg_t msg;
 
@@ -342,7 +358,11 @@ static void bt_user(void *arg){
 
 static void bt_emergency(void *arg){
     (void) arg;
-    printf("Pressed Emergency\n");
+    
+    if(DEBUG_MODE == 1){
+        puts("Pressed panic\n");
+    }
+
     gpio_t B_temp= GPIO_PIN(BT_EMRG_PORT , BT_EMRG_PIN);
     msg_t msg;
 
@@ -387,13 +407,23 @@ static void *sender(void *arg){
         cayenne_lpp_add_analog_output(&lpp,6, temp2);
         cayenne_lpp_add_analog_output(&lpp,7,temp3);
         */
-
-        printf("Sending LPP data\n");
+        
+        if(DEBUG_MODE == 1){
+            puts("Sending LPP data");
+        }
+        
 
         /* send the LoRaWAN message */
         uint8_t ret = semtech_loramac_send(&loramac, lpp.buffer, lpp.cursor);
         if (ret != SEMTECH_LORAMAC_TX_DONE) {
-            printf("Cannot send lpp message, ret code: %d\n", ret);
+            if(DEBUG_MODE == 1){
+                printf("Cannot send lpp message\n");
+            }
+        }
+        else{
+            if(DEBUG_MODE == 1){
+                printf("Send lpp message\n");
+            }
         }
 
         /*clear buffer */
@@ -409,7 +439,10 @@ static void *sender(void *arg){
                 break;
         }
 
-        printf("Next send in %d min\n", temps/60);
+        if(DEBUG_MODE == 1){
+            printf("Next send in %d min\n\n", temps/60);
+        }
+
         for(int i=0; i < temps; i++){
             if(msg_try_receive(&msg) != -1){
                 mode = msg.content.value;
@@ -449,6 +482,11 @@ void recv(void){
 }
 
 int main(void){
+    if(DEBUG_MODE == 1){
+        puts("Démarrage du programme \n");
+    }
+
+
     //Initialisation des boutons
     init_bouton((void*)0);
 
@@ -496,13 +534,30 @@ void init_bouton(void *arg){
     (void) arg;
     gpio_t B_user = GPIO_PIN( BT_USER_PORT , BT_USER_PIN );
     if(gpio_init_int (B_user, BT_RES, BT_DETEC , bt_user,(void*)0) < 0){
-        puts("[FAILED] init BTN!");
+        if(DEBUG_MODE == 1){
+            puts("Init bouton User Erreur");
+        }
+        
         erreur = true;
     }
+    else{
+        if(DEBUG_MODE == 1){
+            puts("Init bouton User OK");
+        }
+    }
+
+
     gpio_t B_emergency = GPIO_PIN( BT_EMRG_PORT , BT_EMRG_PIN );
     if(gpio_init_int (B_emergency, BT_RES, BT_DETEC , bt_emergency,(void*)0) < 0){
-        puts("[FAILED] init BTN!");
+        if(DEBUG_MODE == 1){
+            puts("Init bouton panic Erreur");
+        }
         erreur = true;
+    }
+    else{
+        if(DEBUG_MODE == 1){
+            puts("Init bouton panic OK");
+        }
     }
 }
 
@@ -510,15 +565,21 @@ void init_bmp280(void *arg){
     (void) arg;
     switch (bmx280_init(&my_bmp, &bmx280_params[0])) {
         case BMX280_ERR_BUS:
-            puts("[Error] Something went wrong when using the I2C bus");
+            if(DEBUG_MODE == 1){
+                puts("[Error] Something went wrong when using the I2C bus");
+            }   
             erreur = true;
             break;
         case BMX280_ERR_NODEV:
-            puts("[Error] Unable to communicate with any BMX280 device");
+            if(DEBUG_MODE == 1){
+                puts("[Error] Unable to communicate with any BMX280 device");
+            }   
             erreur = true;
             break;
         default:
-            /* all good -> do nothing */
+            if(DEBUG_MODE == 1){
+                puts("Init capteur bmp280 OK");
+            }  
             break;
     }
 }
@@ -526,9 +587,16 @@ void init_bmp280(void *arg){
 void init_flamme(void *arg){
     (void) arg;
     if (adc_init(0) < 0) {
-        printf("Initialization of ADC_LINE(0) failed\n");
+        if(DEBUG_MODE == 1){
+                puts("Init capteur flamme ADC_LINE(0) Erreur");
+        }  
         erreur = true;
     } 
+    else{
+        if(DEBUG_MODE == 1){
+                puts("Init capteur flamme OK");
+        }    
+    }
 }
 
 void init_pir(void *arg){
@@ -539,10 +607,14 @@ void init_pir(void *arg){
 
 
     if (pir_init(&dev, &my_pir_parm) == 0) {
-        puts("[OK]\n");
+        if(DEBUG_MODE == 1){
+            puts("Init capteur pir OK");
+        }  
     }
     else {
-        puts("[Failfed]");
+        if(DEBUG_MODE == 1){
+            puts("Init capteur pir Erreur");
+        }  
         erreur = true;
     }
 }
@@ -560,15 +632,26 @@ void set_lora(void *arg){
 
 void join_lora(void *arg){
     (void) arg;
-    puts("Starting join procedure");
+
+    if(DEBUG_MODE == 1){
+        puts("Starting join procedure");
+    }  
+    
     bool temp_erreur;
     for(int i =0; i< NB_TENTATIVE_LORA ;i++){
         if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
-            puts("Join procedure failed");
+
+            if(DEBUG_MODE == 1){
+                puts("Join procedure failed\n");
+            }  
+            
             temp_erreur = true;
         }
         else{
-            puts("Join procedure succeeded");
+            if(DEBUG_MODE == 1){
+                puts("Join procedure succeeded\n");
+            }  
+            
             temp_erreur = false;
             break;
         }

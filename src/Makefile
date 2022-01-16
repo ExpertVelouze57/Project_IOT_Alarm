@@ -1,4 +1,4 @@
-APPLICATION = cayenne
+APPLICATION = IOT_ALARM
 
 BOARD ?= lora-e5-dev
 

@@ -1,8 +1,8 @@
 #include "pir.h"
 #include "pir_params.h"
 
-#define PIR_port PORT_B
-#define PIR_pin  9
+#define PIR_port PORT_A
+#define PIR_pin  0
 #define PIR_active_high true
 
 #define DELAY_to_start      3
