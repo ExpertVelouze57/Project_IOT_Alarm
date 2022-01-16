@@ -23,6 +23,7 @@
 
 #include "Include/buzzer.h"
 #include "Include/led.h"
+#include "Include/bmp280.h"
 
 /* TODO: Add the cayenne_lpp header here */
 #include "cayenne_lpp.h"
@@ -209,9 +210,6 @@ static void *alarm_thread(void *arg){
     return NULL;
 }
 
-#define T_MAX_ALARM 60
-#define T_MIN_ALARM 25
-
 static void *monitor_bmx_thread(void *arg){
     (void) arg;
     xtimer_usleep(1);
@@ -254,7 +252,6 @@ static void *monitor_bmx_thread(void *arg){
             msg.content.value= 1;
             msg_send(&msg, p_alarm);
         }
-        //printf("%d    %d     %d\n", temp, temp_old,coef);
         xtimer_periodic_wakeup(&bmx_time, DELAY_temp); 
     }
 
