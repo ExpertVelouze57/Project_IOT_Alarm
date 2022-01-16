@@ -1,8 +1,5 @@
 #include <string.h>
 
-#include "net/loramac.h"
-#include "semtech_loramac.h"
-
 /*Header for sleep*/
 #include "xtimer.h"
 
@@ -20,17 +17,7 @@
 #include "Include/flamme.h"
 #include "Include/pir_detector.h"
 #include "Include/bouton.h"
-
-/* TODO: Add the cayenne_lpp header here */
-#include "cayenne_lpp.h"
-
-
-#define DELAY_temp              (30000000U) //30s
-
-#define NORMALE_send            (30*60) //30 min faire * 1s
-#define EMERGENCY_send          (2*60) //2 min faire *1s
-#define UNE_S                   (1000000U)
-
+#include "Include/lora_my.h"
 
 
 /**/
@@ -40,11 +27,6 @@ kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir, p_sender;
 extern semtech_loramac_t loramac;
 static cayenne_lpp_t lpp;
 
-
-//Data LoRa et app
-static const uint8_t deveui[LORAMAC_DEVEUI_LEN] = { 0x7c, 0xd0, 0x79, 0x4e, 0x00, 0xe3, 0xcf, 0x3f};
-static const uint8_t appeui[LORAMAC_APPEUI_LEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-static const uint8_t appkey[LORAMAC_APPKEY_LEN] = { 0x8B, 0x79, 0xA3, 0x46, 0xE1, 0x60, 0x79, 0x66, 0x09, 0x7A, 0x47, 0x4E, 0x45, 0x23, 0x1A, 0xAD};
 
 /* Allocate the writer stack here */
 static char sender_stack[THREAD_STACKSIZE_MAIN];
@@ -245,7 +227,7 @@ static void *monitor_bmx_thread(void *arg){
             msg.content.value= 1;
             msg_send(&msg, p_alarm);
         }
-        xtimer_periodic_wakeup(&bmx_time, DELAY_temp); 
+        xtimer_periodic_wakeup(&bmx_time, DELAY_BMP_REFRESH); 
     }
 
     
@@ -459,11 +441,7 @@ void recv(void){
 }
 
 int main(void){
-    /**/
-    
    
-
-    msg_t msg_main;
 
     /*Déclaration des boutons*/
     gpio_t B_user = GPIO_PIN( BT_USER_PORT , BT_USER_PIN );
@@ -526,7 +504,7 @@ int main(void){
     
     puts("Starting join procedure");
     bool temp_erreur;
-    for(int i =0; i<1;i++){
+    for(int i =0; i< NB_TENTATIVE_LORA ;i++){
         if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
             puts("Join procedure failed");
             temp_erreur = true;
@@ -553,7 +531,8 @@ int main(void){
     p_sender = thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
 
 
-    //fin initialisation envoie statue led
+    /*Déclaration variable pour les message, fin init, send led status*/
+    msg_t msg_main;
     msg_main.content.value = ((erreur == true) ? 2 : 1);
     msg_send(&msg_main, p_led);
 
