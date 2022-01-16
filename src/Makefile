@@ -23,6 +23,7 @@ USEMODULE += sx126x_stm32wl
 USEMODULE += pir
 
 FEATURES_REQUIRED = periph_adc
+FEATURES_REQUIRED += periph_gpio_irq
 
 USEPKG += semtech-loramac
 USEMODULE += auto_init_loramac

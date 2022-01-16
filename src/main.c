@@ -19,8 +19,16 @@
 #include "Include/bouton.h"
 #include "Include/lora_my.h"
 
+//Déclaration prototype des fonctions
+void init_bouton(void *arg);
+void init_bmp280(void *arg);
+void init_flamme(void *arg);
+void init_pir(void *arg);
+void set_lora(void *arg);
+void join_lora(void *arg);
 
-/**/
+
+/*Déclaration des PID*/
 kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir, p_sender;
 
 /* Declare globally the loramac descriptor */
@@ -441,86 +449,24 @@ void recv(void){
 }
 
 int main(void){
-   
+    //Initialisation des boutons
+    init_bouton((void*)0);
 
-    /*Déclaration des boutons*/
-    gpio_t B_user = GPIO_PIN( BT_USER_PORT , BT_USER_PIN );
-    if(gpio_init_int (B_user, BT_RES, BT_DETEC , bt_user,(void*)0) < 0){
-        puts("[FAILED] init BTN!");
-        erreur = true;
-    }
-    gpio_t B_emergency = GPIO_PIN( BT_EMRG_PORT , BT_EMRG_PIN );
-    if(gpio_init_int (B_emergency, BT_RES, BT_DETEC , bt_emergency,(void*)0) < 0){
-        puts("[FAILED] init BTN!");
-        erreur = true;
-    }
+    //Initialisation du capteur de température
+    init_bmp280((void*)0);
 
-    /*intitalisation bme */
-    switch (bmx280_init(&my_bmp, &bmx280_params[0])) {
-        case BMX280_ERR_BUS:
-            puts("[Error] Something went wrong when using the I2C bus");
-            erreur = true;
-            break;
-        case BMX280_ERR_NODEV:
-            puts("[Error] Unable to communicate with any BMX280 device");
-            erreur = true;
-            break;
-        default:
-            /* all good -> do nothing */
-            break;
-    }
+    //Initialisation du capteur de flamme
+    init_flamme((void*)0);
 
-    //Initialaisation flam
-    if (adc_init(0) < 0) {
-        printf("Initialization of ADC_LINE(0) failed\n");
-        erreur = true;
-    } else {
-        printf("Successfully initialized ADC_LINE(0)\n");  
-    }
+    //Initialisation du capteur de présence
+    init_pir((void*)0);
 
-    //PIR motion sensor init
-    pir_params_t my_pir_parm;
-    my_pir_parm.gpio = GPIO_PIN(PIR_port ,PIR_port);
-    my_pir_parm.active_high = PIR_active_high;
+    //Set information Lora
+    set_lora((void*)0);
 
+    //Join procedure
+    join_lora((void*)0);
 
-    if (pir_init(&dev, &my_pir_parm) == 0) {
-        puts("[OK]\n");
-    }
-    else {
-        puts("[Failfed]");
-        erreur = true;
-    }
-
-    /* use a fast datarate so we don't use the physical layer too much */
-    semtech_loramac_set_dr(&loramac, 5);
-
-    /* set the LoRaWAN keys */
-    semtech_loramac_set_deveui(&loramac, deveui);
-    semtech_loramac_set_appeui(&loramac, appeui);
-    semtech_loramac_set_appkey(&loramac, appkey);
-
-    /* start the OTAA join procedure */
-    
-    puts("Starting join procedure");
-    bool temp_erreur;
-    for(int i =0; i< NB_TENTATIVE_LORA ;i++){
-        if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
-            puts("Join procedure failed");
-            temp_erreur = true;
-        }
-        else{
-            puts("Join procedure succeeded");
-            temp_erreur = false;
-            break;
-        }
-
-        //toutes les 500us
-        xtimer_usleep(500);
-    }
-    printf("%d\n", temp_erreur);
-
-    //erreur = erreur || temp_erreur;
 
     /*Création des thread*/
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
@@ -542,4 +488,95 @@ int main(void){
     }
 
     return 0;
+}
+
+
+
+void init_bouton(void *arg){
+    (void) arg;
+    gpio_t B_user = GPIO_PIN( BT_USER_PORT , BT_USER_PIN );
+    if(gpio_init_int (B_user, BT_RES, BT_DETEC , bt_user,(void*)0) < 0){
+        puts("[FAILED] init BTN!");
+        erreur = true;
+    }
+    gpio_t B_emergency = GPIO_PIN( BT_EMRG_PORT , BT_EMRG_PIN );
+    if(gpio_init_int (B_emergency, BT_RES, BT_DETEC , bt_emergency,(void*)0) < 0){
+        puts("[FAILED] init BTN!");
+        erreur = true;
+    }
+}
+
+void init_bmp280(void *arg){
+    (void) arg;
+    switch (bmx280_init(&my_bmp, &bmx280_params[0])) {
+        case BMX280_ERR_BUS:
+            puts("[Error] Something went wrong when using the I2C bus");
+            erreur = true;
+            break;
+        case BMX280_ERR_NODEV:
+            puts("[Error] Unable to communicate with any BMX280 device");
+            erreur = true;
+            break;
+        default:
+            /* all good -> do nothing */
+            break;
+    }
+}
+
+void init_flamme(void *arg){
+    (void) arg;
+    if (adc_init(0) < 0) {
+        printf("Initialization of ADC_LINE(0) failed\n");
+        erreur = true;
+    } 
+}
+
+void init_pir(void *arg){
+    (void) arg;
+    pir_params_t my_pir_parm;
+    my_pir_parm.gpio = GPIO_PIN(PIR_port ,PIR_port);
+    my_pir_parm.active_high = PIR_active_high;
+
+
+    if (pir_init(&dev, &my_pir_parm) == 0) {
+        puts("[OK]\n");
+    }
+    else {
+        puts("[Failfed]");
+        erreur = true;
+    }
+}
+
+void set_lora(void *arg){
+    (void) arg;
+    /* use a fast datarate so we don't use the physical layer too much */
+    semtech_loramac_set_dr(&loramac, 5);
+
+    /* set the LoRaWAN keys */
+    semtech_loramac_set_deveui(&loramac, deveui);
+    semtech_loramac_set_appeui(&loramac, appeui);
+    semtech_loramac_set_appkey(&loramac, appkey);
+}
+
+void join_lora(void *arg){
+    (void) arg;
+    puts("Starting join procedure");
+    bool temp_erreur;
+    for(int i =0; i< NB_TENTATIVE_LORA ;i++){
+        if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
+            puts("Join procedure failed");
+            temp_erreur = true;
+        }
+        else{
+            puts("Join procedure succeeded");
+            temp_erreur = false;
+            break;
+        }
+
+        //toutes les 500us
+        xtimer_usleep(TIME_BT_TENTATIVE);
+    }
+    temp_erreur =0;
+    erreur = erreur || temp_erreur;
+
 }

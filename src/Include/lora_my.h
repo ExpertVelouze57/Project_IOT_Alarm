@@ -3,10 +3,13 @@
 #include "cayenne_lpp.h"
 
 #define NB_TENTATIVE_LORA       1
+#define TIME_BT_TENTATIVE       500 //in us
 
 #define NORMALE_send            (30*60) //30 min faire * 1s
 #define EMERGENCY_send          (2*60) //2 min faire *1s
 #define UNE_S                   (1000000U)
+
+
 
 
 static const uint8_t deveui[LORAMAC_DEVEUI_LEN] = { 0x7c, 0xd0, 0x79, 0x4e, 0x00, 0xe3, 0xcf, 0x3f};
