@@ -24,6 +24,7 @@
 #include "Include/buzzer.h"
 #include "Include/led.h"
 #include "Include/bmp280.h"
+#include "Include/flamme.h"
 
 /* TODO: Add the cayenne_lpp header here */
 #include "cayenne_lpp.h"
@@ -259,7 +260,7 @@ static void *monitor_bmx_thread(void *arg){
     return NULL;
 }
 
-static void *monitor_flame_thread(void *arg){
+static void *monitor_flamme_thread(void *arg){
     (void) arg;
     xtimer_usleep(1);
 
@@ -270,9 +271,9 @@ static void *monitor_flame_thread(void *arg){
 
     int xvalue=0; 
     while(1){
-        xvalue = adc_sample(ADC_LINE(0), ADC_RES_10BIT);
+        xvalue = adc_sample(ADC_LINE(FLAMME_PORT), PRECISION_ADC);
         
-        if(xvalue < 1000){
+        if(xvalue < FLAMME_SEUIL_DETEC){
             printf("Flame detected !!! \n");
             flame = 1;
             msg.content.value= 1;
@@ -280,7 +281,7 @@ static void *monitor_flame_thread(void *arg){
         }
 
 
-        xtimer_periodic_wakeup(&flame_time, DELAY_WAIT_BUZZER);
+        xtimer_periodic_wakeup(&flame_time, DELAY_FLAMME_REFRESH);
     }
     
     return NULL;
@@ -549,7 +550,7 @@ int main(void){
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
     p_led= thread_create(led_stack, sizeof(led_stack), THREAD_PRIORITY_MAIN - 1, 0, flashing_thread, NULL, "led thread");
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
-    p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
+    p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flamme_thread, NULL, "flame thread");
     p_pir= thread_create(pir_stack, sizeof(pir_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_PIR_thread, NULL, "PIr thread");
     p_sender = thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
 
