@@ -11,13 +11,6 @@
 #include "msg.h"
 
 /*header for temp sensor*/
-#include "bmx280.h"
-#include "bmx280_params.h"
-
-#include "pir.h"
-#include "pir_params.h"
-
-#include "periph/adc.h"
 
 #include "board.h"
 
@@ -25,13 +18,12 @@
 #include "Include/led.h"
 #include "Include/bmp280.h"
 #include "Include/flamme.h"
+#include "Include/pir_detector.h"
+#include "Include/bouton.h"
 
 /* TODO: Add the cayenne_lpp header here */
 #include "cayenne_lpp.h"
 
-
-#define DELAY_Pir               (100000U)
-#define TIME_PRESENCE           (10) //Periode en seconde ou on veut savoir si il y a quelq'un
 
 #define DELAY_temp              (30000000U) //30s
 
@@ -289,13 +281,16 @@ static void *monitor_flamme_thread(void *arg){
 
 static void *monitor_PIR_thread(void *arg){
     (void) arg;
+
     /*Pause de 3 s avant de demarer*/
-    xtimer_usleep(3000000);
+    xtimer_sleep(DELAY_to_start);
 
+    //Gestion du temps
     xtimer_ticks32_t PIR_time = xtimer_now();
-
     uint32_t time_1 = xtimer_now_usec();;
     uint32_t time_2;
+
+    //Déclaration variables interne
     int presence = 0, presence_avant =0;
     
     while (1) {
@@ -327,8 +322,8 @@ static void *monitor_PIR_thread(void *arg){
 
 static void bt_user(void *arg){
     (void) arg;
-    printf("Pressed User%d\n", (int)arg); 
-    gpio_t B_temp= GPIO_PIN(PORT_A ,10);
+    printf("Pressed User\n"); 
+    gpio_t B_temp= GPIO_PIN(BT_USER_PORT ,BT_USER_PIN);
     msg_t msg;
 
     /*Desactivation interuption == eviter les cliques multiple*/
@@ -351,14 +346,14 @@ static void bt_user(void *arg){
     flame=0;
     alarm_enable =0;
     
-    xtimer_usleep(50);
+    xtimer_usleep(DELAY_BT);
     gpio_irq_enable(B_temp); 
 }
 
 static void bt_emergency(void *arg){
     (void) arg;
     printf("Pressed Emergency\n");
-    gpio_t B_temp= GPIO_PIN(PORT_B ,14);
+    gpio_t B_temp= GPIO_PIN(BT_EMRG_PORT , BT_EMRG_PIN);
     msg_t msg;
 
     /*Desactivation interuption == eviter les cliques multiple*/
@@ -368,7 +363,7 @@ static void bt_emergency(void *arg){
     msg_send(&msg, p_alarm);
     bt_panic = 1;
     
-    xtimer_usleep(50);
+    xtimer_usleep(DELAY_BT);
     gpio_irq_enable(B_temp); 
 }
 
@@ -466,20 +461,18 @@ void recv(void){
 int main(void){
     /**/
     
-    pir_params_t my_pir_parm;
-    my_pir_parm.gpio = GPIO_PIN(PORT_B ,9);
-    my_pir_parm.active_high = true;
+   
 
     msg_t msg_main;
 
     /*Déclaration des boutons*/
-    gpio_t B_user = GPIO_PIN(PORT_A ,10);
-    if(gpio_init_int (B_user, GPIO_IN_PU, GPIO_RISING , bt_user,(void*)0) < 0){
+    gpio_t B_user = GPIO_PIN( BT_USER_PORT , BT_USER_PIN );
+    if(gpio_init_int (B_user, BT_RES, BT_DETEC , bt_user,(void*)0) < 0){
         puts("[FAILED] init BTN!");
         erreur = true;
     }
-    gpio_t B_emergency = GPIO_PIN(PORT_B ,14);
-    if(gpio_init_int (B_emergency, GPIO_IN_PU, GPIO_RISING , bt_emergency,(void*)0) < 0){
+    gpio_t B_emergency = GPIO_PIN( BT_EMRG_PORT , BT_EMRG_PIN );
+    if(gpio_init_int (B_emergency, BT_RES, BT_DETEC , bt_emergency,(void*)0) < 0){
         puts("[FAILED] init BTN!");
         erreur = true;
     }
@@ -508,6 +501,11 @@ int main(void){
     }
 
     //PIR motion sensor init
+    pir_params_t my_pir_parm;
+    my_pir_parm.gpio = GPIO_PIN(PIR_port ,PIR_port);
+    my_pir_parm.active_high = PIR_active_high;
+
+
     if (pir_init(&dev, &my_pir_parm) == 0) {
         puts("[OK]\n");
     }
