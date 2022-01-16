@@ -21,6 +21,8 @@
 
 #include "board.h"
 
+#include "Include/buzzer.h"
+
 /* TODO: Add the cayenne_lpp header here */
 #include "cayenne_lpp.h"
 
@@ -35,16 +37,8 @@
 
 #define NORMALE_send            (30*60) //30 min faire * 1s
 #define EMERGENCY_send          (2*60) //2 min faire *1s
-#define UNE_S                   (1000000)
+#define UNE_S                   (1000000U)
 
-
-#define DELAY               (500000U)
-#define NOTE_1              (2500U)
-#define NOTE_2              (1250U)
-#define NOTE_3              (2500U)
-#define NOTE_4              (2500U)
-#define DELAY_B_2           (2)
-#define STEPS               (1000U)
 
 
 /**/
@@ -140,17 +134,24 @@ static void *alarm_thread(void *arg){
     (void) arg;
     xtimer_usleep(1);
 
+    //Definition du timer
     xtimer_ticks32_t pwm = xtimer_now();
-    gpio_t buzzer = GPIO_PIN(PORT_B ,4);
+
+    //Definition de la sortie du buzzer
+    gpio_t buzzer = GPIO_PIN(Buzzer_port ,Buzzer_pin);
     gpio_init( buzzer, GPIO_OUT );
 
+    //Creation du système de message
     msg_init_queue(alarm_queue, 4);
-    
-    int temps;
-    int temp=0, premiere_fois=0;
     msg_t msg, msg_led;
 
+    //Definition variables local
+    int temps;
+    int temp=0, premiere_fois=0;
+    
+
     while (1) {
+        //Regarde si un message de changement d'état à été recu
         if(msg_try_receive(&msg) != -1){
            temp = msg.content.value;   
         }
@@ -171,6 +172,7 @@ static void *alarm_thread(void *arg){
             }
             
 
+            //Joue la note 1
             temps= 0;
             while(temps < 400){
                 xtimer_periodic_wakeup(&pwm, NOTE_1/2);      
@@ -179,7 +181,8 @@ static void *alarm_thread(void *arg){
                 gpio_write(buzzer, 0);
                 temps ++;
             }
-        
+
+            //Joue la note 2
             temps= 0;
             while(temps < 400){
                 xtimer_periodic_wakeup(&pwm, NOTE_2/2);      
@@ -189,15 +192,16 @@ static void *alarm_thread(void *arg){
                 temps ++;
             }
 
+            //Pause 
             temps= 0;
             while(temps < 200){
-                xtimer_periodic_wakeup(&pwm, NOTE_1); 
+                xtimer_periodic_wakeup(&pwm, DELAY_B_2); 
                 temps ++;
             }
         }
         
         else{
-            xtimer_periodic_wakeup(&pwm, DELAY); 
+            xtimer_periodic_wakeup(&pwm, DELAY_WAIT_BUZZER); 
             premiere_fois = 0;
         }
     }
@@ -280,7 +284,7 @@ static void *monitor_flame_thread(void *arg){
         }
 
 
-        xtimer_periodic_wakeup(&flame_time, DELAY);
+        xtimer_periodic_wakeup(&flame_time, DELAY_WAIT_BUZZER);
     }
     
     return NULL;
