@@ -13,6 +13,11 @@ USEMODULE += bmp280_i2c
 CFLAGS += -DBMX280_PARAM_I2C_DEV=I2C_DEV\(\0\)
 CFLAGS += -DBMX280_PARAM_I2C_ADDR=0x77
 
+USEMODULE += sx1272  # for a SX1272 radio device
+USEMODULE += sx1276  # for a SX1276 radio device
+USEMODULE += semtech_loramac_rx
+
+
 USEMODULE += xtimer
 USEMODULE += sx126x_stm32wl
 USEMODULE += pir
