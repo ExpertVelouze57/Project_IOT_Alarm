@@ -24,27 +24,36 @@
 /* TODO: Add the cayenne_lpp header here */
 #include "cayenne_lpp.h"
 
-#define DELAY_led_off          (3000000U)
-#define DELAY_led_on           (100000U)
-#define DELAY_led_wait           (500000U)
+#define DELAY_led_off           (3000000U)
+#define DELAY_led_on            (100000U)
+#define DELAY_led_wait          (500000U)
 
-#define DELAY_Pir            (100000U)
-#define TIME_PRESENCE        (10) //Periode en seconde ou on veut savoir si il y a quelq'un
+#define DELAY_Pir               (100000U)
+#define TIME_PRESENCE           (10) //Periode en seconde ou on veut savoir si il y a quelq'un
 
-#define DELAY_temp           (30000000U) //30s
+#define DELAY_temp              (30000000U) //30s
+
+#define NORMALE_send            (30*60) //30 min faire * 1s
+#define EMERGENCY_send          (2*60) //2 min faire *1s
+#define UNE_S                   (1000000)
 
 
-#define DELAY           (500000U)
-#define NOTE_1           (2500U)
-#define NOTE_2           (1250U)
-#define NOTE_3           (2500U)
-#define NOTE_4           (2500U)
+#define DELAY               (500000U)
+#define NOTE_1              (2500U)
+#define NOTE_2              (1250U)
+#define NOTE_3              (2500U)
+#define NOTE_4              (2500U)
 #define DELAY_B_2           (2)
-#define STEPS           (1000U)
+#define STEPS               (1000U)
 
+
+ 
+#define LORAMAC_RECV_MSG_QUEUE                   (4U)
+static msg_t _loramac_recv_queue[LORAMAC_RECV_MSG_QUEUE];
+static char recv_stack[THREAD_STACKSIZE_DEFAULT];
 
 /**/
-kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir;
+kernel_pid_t p_led, p_alarm, p_bmx, p_flame, p_pir, p_sender;
 
 /* Declare globally the loramac descriptor */
 extern semtech_loramac_t loramac;
@@ -67,6 +76,7 @@ static char pir_stack[THREAD_STACKSIZE_MAIN];
 
 static msg_t led_queue[4];
 static msg_t alarm_queue[4];
+static msg_t send_queue[4];
 
 //bt interupt
 static bool erreur = false;
@@ -97,9 +107,9 @@ static void *flashing_thread(void *arg){
         if(valeur_clin == 0){
             /*Cas Incendi*/
             gpio_write(led,1);
-            xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
+            xtimer_periodic_wakeup(&clin, DELAY_led_wait/3); 
             gpio_write(led,0);
-            xtimer_periodic_wakeup(&clin, DELAY_led_wait); 
+            xtimer_periodic_wakeup(&clin, DELAY_led_wait/3); 
         }
 
         else if(valeur_clin == 1){
@@ -142,7 +152,7 @@ static void *alarm_thread(void *arg){
     msg_init_queue(alarm_queue, 4);
     
     int temps;
-    int temp=0;
+    int temp=0, premiere_fois=0;
     msg_t msg, msg_led;
 
     while (1) {
@@ -152,10 +162,19 @@ static void *alarm_thread(void *arg){
            
         if(temp == 1){
             alarm_enable = 1;
-            /*active la led urgence*/
-            msg_led.content.value =0;
-            msg_send(&msg_led, p_led);
 
+            if(premiere_fois == 0){
+                /*active la led urgence*/
+                msg_led.content.value =0;
+                msg_send(&msg_led, p_led);
+
+                /*active l'envoie d'urgence*/
+                msg_led.content.value =1;
+                msg_send(&msg_led, p_sender);
+
+                premiere_fois = 1;
+            }
+            
 
             temps= 0;
             while(temps < 400){
@@ -184,6 +203,7 @@ static void *alarm_thread(void *arg){
         
         else{
             xtimer_periodic_wakeup(&pwm, DELAY); 
+            premiere_fois = 0;
         }
     }
 
@@ -236,7 +256,7 @@ static void *monitor_bmx_thread(void *arg){
             msg.content.value= 1;
             msg_send(&msg, p_alarm);
         }
-        printf("%d    %d     %d\n", temp, temp_old,coef);
+        //printf("%d    %d     %d\n", temp, temp_old,coef);
         xtimer_periodic_wakeup(&bmx_time, DELAY_temp); 
     }
 
@@ -310,6 +330,7 @@ static void *monitor_PIR_thread(void *arg){
 
 
 static void bt_user(void *arg){
+    (void) arg;
     printf("Pressed User%d\n", (int)arg); 
     gpio_t B_temp= GPIO_PIN(PORT_A ,10);
     msg_t msg;
@@ -320,8 +341,13 @@ static void bt_user(void *arg){
     msg.content.value = ((erreur == true) ? 2 : 1);
     msg_send(&msg, p_led);
 
+    //Desactivation Alarm
     msg.content.value= 0;
     msg_send(&msg, p_alarm);
+
+    //Retour normal frequence send data
+    msg.content.value= 0;
+    msg_send(&msg, p_sender);
 
 
     bt_panic = 0;
@@ -329,12 +355,13 @@ static void bt_user(void *arg){
     flame=0;
     alarm_enable =0;
     
-    xtimer_usleep(500);
+    xtimer_usleep(50);
     gpio_irq_enable(B_temp); 
 }
 
 static void bt_emergency(void *arg){
-    printf("Pressed Emergency%d\n", (int)arg);
+    (void) arg;
+    printf("Pressed Emergency\n");
     gpio_t B_temp= GPIO_PIN(PORT_B ,14);
     msg_t msg;
 
@@ -345,30 +372,40 @@ static void bt_emergency(void *arg){
     msg_send(&msg, p_alarm);
     bt_panic = 1;
     
-    xtimer_usleep(500);
+    xtimer_usleep(50);
     gpio_irq_enable(B_temp); 
 }
 
 
 static void *sender(void *arg){
     (void) arg;
+    
+    xtimer_ticks32_t SEND_time = xtimer_now();
 
-    int16_t temperature;
+    int16_t temperature, temps;
+    int8_t mode = 0;   //Mode 0 = normale mode 1 = alarme
+
+    /*Initialisation du protocole de communication*/
+    msg_init_queue(send_queue, 4);
+    msg_t msg;
 
     while (1) {
-        /* wait 20 secs */
-        xtimer_sleep(5);
-        
         temperature = bmx280_read_temperature(&my_bmp);        
 
 
-        /* TODO: prepare cayenne lpp payload here */
-
+        /* prepare cayenne lpp payload */
         cayenne_lpp_add_digital_input(&lpp, 0, fire);
         cayenne_lpp_add_temperature(&lpp, 1,(float)temperature/100);
         cayenne_lpp_add_digital_input(&lpp, 2, PIR_min_10);
         cayenne_lpp_add_digital_input(&lpp,3, flame);
         cayenne_lpp_add_digital_input(&lpp,4,bt_panic);
+
+        /* //Une fois pour ajouter les boutons sur l'interface cayenne
+        int temp1=0, temp2=0, temp3=0;
+        cayenne_lpp_add_digital_output(&lpp,5, temp1);
+        cayenne_lpp_add_analog_output(&lpp,6, temp2);
+        cayenne_lpp_add_analog_output(&lpp,7,temp3);
+        */
 
         printf("Sending LPP data\n");
 
@@ -378,12 +415,56 @@ static void *sender(void *arg){
             printf("Cannot send lpp message, ret code: %d\n", ret);
         }
 
-        /* TODO: clear buffer once done here */
+        /*clear buffer */
         cayenne_lpp_reset(&lpp);
+
+        /*patiennte*/
+        switch(mode){
+            case 0:
+                temps = NORMALE_send;
+                break;
+            case 1:
+                temps = EMERGENCY_send;
+                break;
+        }
+
+        printf("Next send in %d min\n", temps/60)
+;        for(int i=0; i < temps; i++){
+            if(msg_try_receive(&msg) != -1){
+                mode = msg.content.value;
+                
+                if( mode  == 1) //en cas durgence uniquement qui la pause et envoie les donnée 
+                    break;   
+            }
+
+            xtimer_periodic_wakeup(&SEND_time, UNE_S);
+        }
+
+        
     }
 
     /* this should never be reached */
     return NULL;
+}
+
+static void *recv(void *arg)
+{
+     msg_init_queue(_loramac_recv_queue, LORAMAC_RECV_MSG_QUEUE);
+
+    (void)arg;
+    while (1) {
+        /* blocks until something is received */
+        switch (semtech_loramac_recv(&loramac)) {
+            case SEMTECH_LORAMAC_RX_DATA:
+                loramac.rx_data.payload[loramac.rx_data.payload_len] = 0;
+                printf("Data received: %s, port: %d\n",(char *)loramac.rx_data.payload, loramac.rx_data.port);
+                break;
+
+            default:
+                break;
+        }
+    }
+  return NULL;
 }
 
 int main(void){
@@ -451,19 +532,24 @@ int main(void){
     /* start the OTAA join procedure */
     
     puts("Starting join procedure");
-    while(1){
+    bool temp_erreur;
+    for(int i =0; i<1;i++){
         if (semtech_loramac_join(&loramac, LORAMAC_JOIN_OTAA) != SEMTECH_LORAMAC_JOIN_SUCCEEDED) {
             puts("Join procedure failed");
-            erreur = true;
+            temp_erreur = true;
         }
         else{
             puts("Join procedure succeeded");
+            temp_erreur = false;
             break;
         }
-        
 
-        xtimer_usleep(500000);
+        //toutes les 500us
+        xtimer_usleep(500);
     }
+    printf("%d\n", temp_erreur);
+
+    //erreur = erreur || temp_erreur;
 
     /*Création des thread*/
     p_alarm = thread_create(alarm_stack, sizeof(alarm_stack), THREAD_PRIORITY_MAIN - 1, 0, alarm_thread, NULL, "alarm thread");
@@ -471,21 +557,18 @@ int main(void){
     p_bmx= thread_create(bmx_stack, sizeof(bmx_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_bmx_thread, NULL, "bmx thread");
     p_flame= thread_create(flame_stack, sizeof(flame_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_flame_thread, NULL, "flame thread");
     p_pir= thread_create(pir_stack, sizeof(pir_stack), THREAD_PRIORITY_MAIN - 1, 0, monitor_PIR_thread, NULL, "PIr thread");
-
-    thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
-
-        
+    thread_create(recv_stack, sizeof(recv_stack),THREAD_PRIORITY_MAIN - 1, 0, recv, NULL, "recv thread");
 
 
+    p_sender = thread_create(sender_stack, sizeof(sender_stack), THREAD_PRIORITY_MAIN - 1, 0, sender, NULL, "sender thread");
 
-   //fin initialisation envoie statue led
+    //fin initialisation envoie statue led
     msg_main.content.value = ((erreur == true) ? 2 : 1);
     msg_send(&msg_main, p_led);
 
     /*Déclaration est initialisation de la variable message*/
     while(1){
-        
-
+            
 
         //printf("Presence : %d\n", PIR_min_10);
 
@@ -495,33 +578,3 @@ int main(void){
 
     return 0;
 }
-
-
-/*
-if(val_led == 3){
-        val_led = 0;
-    }
-    else{
-        val_led = 1+val_led;
-    }
-    
-    msg_t msg1;
-    if(val_led == 0){
-        printf("Cas eteints\n");
-        msg1.content.value = 0;
-    }
-    else if(val_led ==1){
-        printf("Cas clignontement\n");
-        msg1.content.value = 1;
-    }
-    else if(val_led ==2){
-        printf("Cas fixe\n");
-        msg1.content.value = 2;
-    }
-    else{
-        printf("ne sait pas\n");
-    }
-    msg_send(&msg1, p_led);
-
-
-*/
