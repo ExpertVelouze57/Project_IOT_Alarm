@@ -1,6 +1,6 @@
 # Mini Projet IoT 2021-2022
 # “Réseau de sirènes d’alarme LoRaWAN”
-<p style="text-align: center;"> ![alt text](Image/boite.png "Boite") </p>
+<div style="text-align: center;"> ![alt text](Image/boite.png "Boite") </div>
 
 ## Architecture globale du réseau de sirènes d’alarme
 
