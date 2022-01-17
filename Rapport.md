@@ -135,6 +135,8 @@ Si le bouton panic est utilisé alors le système passe en mode incident détect
 
 Voici une trace des données dans différent cas. Cependant nous nous trouvions trop loin des Gateway donc la partie communication ne fonctionne pas.
 
+![alt text](Image/console.png "Console")
+
 ## Consommation de notre périphérique 
 
 Comme dit précédemment notre dispositif doit être en classe C, la classe b est envisageable en ajoutant par exemple un module RTC et en envoyant les informations sur certaines plages horaires précises.
@@ -161,7 +163,3 @@ D'autres solutions moins gourmandes en énergie telles que la triangulation avec
 ## Intégration cayenne
 
 ## Annexe flow git
-
-
-
-![alt text](Image/star-lord-doigt-d-honneur.gif "ACV")
