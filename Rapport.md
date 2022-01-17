@@ -170,6 +170,6 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 
 [**Plans de la boîte**](https://github.com/ExpertVelouze57/Project_IOT_Alarm/blob/master/fichiers_resources/Boite_projet_IOT.pdf)
 
-
+[**Accès DashBoard**](https://cayenne.mydevices.com/shared/61e591aff54d734bc90bff1f)
 	
 </div>
