@@ -168,7 +168,7 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 ![alt text](Image/git.png "git")
 
 **Plans de la boîte**
-![alt text](https://github.com/ExpertVelouze57/Project_IOT_Alarm/blob/master/fichiers_resources/Boites_projet_iot.svg )
+"https://github.com/ExpertVelouze57/Project_IOT_Alarm/blob/master/fichiers_resources/Boites_projet_iot.svg"
 
 
 	
