@@ -46,9 +46,9 @@ Prix total = $334500</br>
 
        Pour finir avec la certification, notre produit sera promu dans le marketing de LoRa Alliance®.
        
-       ![alt text](Image/LoraAlliance.png) 
+![alt text](Image/LoraAlliance.png) 
        
-       La solution la moins chère est de devenire membre de LoRa alliance, en étant définie comme une startup, pour un prix de 3K$ par an nous pourrions certifié notre périphérique gratuitement.
+La solution la moins chère est de devenire membre de LoRa alliance, en étant définie comme une startup, pour un prix de 3K$ par an nous pourrions certifié notre périphérique gratuitement.
 
 ## Implémentation du logiciel embarqué de l’objet défini
 	
