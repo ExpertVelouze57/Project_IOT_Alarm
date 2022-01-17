@@ -1,12 +1,13 @@
 # Mini Projet IoT 2021-2022     
 # “Réseau de sirènes d’alarme LoRaWAN”
-![alt text](Image/boite.png "Boite"#center) 
+![alt text](Image/boite.png "Boite") 
 
 ## Architecture globale du réseau de sirènes d’alarme
-<div style="text-align: justify">
        L’objectif est de développer un périphérique qui pourra être déployé en réseaux afin de récolter des informations sur plusieurs positions d’un même lieux (exemple entrepôt, pièce de vie, atelier etc…) ou sur différents lieux. Il permetra de pouvoir monitorer ces lieux, déclenche une alerte en cas de détection d'incendie ou en cas d'appuie sur un bouton. 
 
 L'ensemble des informations sera récolté et sera visualisé sur un panneau de contrôle. 
+![alt text](Image/Image1.png "Architecture global") 
+
 
 ## Sécurité de notre périphérique
 
@@ -26,7 +27,6 @@ Pendant la procédure de “join”, 2 clés sont générées dynamiquement entr
 ![alt text](Image/RapportIOT.png "Architecture matérielle")
 
 ## Estimer le coût de la BOM de votre produit
-</dev>
 LoRa e5 Dev Board : 26.9$</br>
 Adjustable PIR Motion Sensor : 8.7$</br>
 Flame detector : 7.6$</br>
@@ -35,7 +35,6 @@ Temp&Humi&Barometer Sensor (BME280) : 18.7$</br>
 Grove - Button : 2.1$ x2 </br>
 PCB : 4$ les 5</br>
 Prix pour 5000 : 26.9*5000 + 8.7*5000 + 7.6*5000 + 2.1*5000 + 18.7*5000 + 2.1*2*5000 + 4*5000/5</br>
-<div style="text-align: justify">
 Prix total = $334500</br>
 
        Cette estimation ne tient pas compte des réductions possibles avec une commande de gros, de la main d'œuvre, du transport,   et ne tient pas compte de la certification.
@@ -46,9 +45,10 @@ Prix total = $334500</br>
        L'intérêt de cette certification est de pouvoir garantir que notre appareil est fiable et conforme à la spécification  LoRaWAN®. De plus cette certification comprend la certification LoRaWANCM  qui est une preuve de qualité et permet de rassurer les potentiel acheteur. 
 
        Pour finir avec la certification, notre produit sera promu dans le marketing de LoRa Alliance®.
-
-**image**
-       La solution la moins chère est de devenire membre de LoRa alliance, en étant définie comme une startup, pour un prix de 3K$ par an nous pourrions certifié notre périphérique gratuitement.
+       
+       ![alt text](Image/LoraAlliance.png) 
+       
+       La solution la moins chère est de devenire membre de LoRa alliance, en étant définie comme une startup, pour un prix de 3K$ par an nous pourrions certifié notre périphérique gratuitement.
 
 ## Implémentation du logiciel embarqué de l’objet défini
 	
@@ -129,6 +129,8 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 
 ## Graphique des fonctionnalités
 
+![alt text](Image/Image2.png "Graph fonctionnalités")
+
        En fonctionnement normal, seul le capteur de présence et les deux boutons poussoirs sont activés. En effet, le capteur de présence va lancer un timer lorsqu’il détecte quelqu’un pour savoir si, dans le cas où il y ait un incendie, on puisse savoir depuis combien de temps une personne est passée dans la pièce.
 
        Si le bouton panic est utilisé alors le système passe en mode incident détecté et met en marche l’alarme sonore (buzzer) et l’alarme visuelle (LED). Le système va également envoyer l’information qu’une personne est présente ou non.
@@ -177,4 +179,4 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 Auteurs
 **Mathis Vernay</br>
 Cyril Pouchol**
-</div>
+
