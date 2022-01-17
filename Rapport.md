@@ -1,11 +1,10 @@
 # Mini Projet IoT 2021-2022
 # “Réseau de sirènes d’alarme LoRaWAN”
-<div id="container">
 ![alt text](Image/boite.png "Boite"#center) 
-</div>
+
 ## Architecture globale du réseau de sirènes d’alarme
 
-L’objectif est de développer un périphérique qui pourra être déployé en réseaux afin de récolter des informations sur plusieurs positions d’un même lieux (exemple entrepôt, pièce de vie, atelier etc…) ou sur différents lieux. Il permetra de pouvoir monitorer ces lieux, déclenche une alerte en cas de détection d'incendie ou en cas d'appuie sur un bouton. 
+ L’objectif est de développer un périphérique qui pourra être déployé en réseaux afin de récolter des informations sur plusieurs positions d’un même lieux (exemple entrepôt, pièce de vie, atelier etc…) ou sur différents lieux. Il permetra de pouvoir monitorer ces lieux, déclenche une alerte en cas de détection d'incendie ou en cas d'appuie sur un bouton. 
 
 L'ensemble des informations sera récolté et sera visualisé sur un panneau de contrôle. 
 
