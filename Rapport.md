@@ -78,10 +78,12 @@ Pour finir en fonctionnement normal nous enverrons à intervalle régulier les i
 
 ## Définir le format LPP des messages LoRaWAN uplink et downlink
 
+![alt text](Image/lpp_payload.png "lpp_cayenne")
 Source : Cayenne Low Power Payload | myDevices Documentation ("https://docs.mydevices.com/docs/lorawan/cayenne-lpp")
 
 
 Nous envoyons cinq données : 4 de type digital et une température comme le montre la capture d’écran suivante : 
+![alt text](Image/code_cayenne.png "code_cayenne")
 
 
 Sur le channel 0 nous avons un byte pour fire.
@@ -91,7 +93,7 @@ Sur le channel 3 nous avons un byte pour flame.
 Sur le channel 4 nous avons un byte pour btn_panic.
 
 En nous basant sur une trame de donnée, nous avons à chaque envoie 152 bits à envoyer, avec le spreading factor le plus élevé nous occuperons 16ms. Pour respecter un ratio de 10% de discussion sur 90% d’écoute nous devons transmettre toutes les 160ms au maximum. Nous communiquerons donc au maximum toutes les 2 min sachant que nous n'avons pas forcément le spreading factor le plus élevé.
-
+![alt text](Image/format_paquets.png "paquets_lora")
 
 ## Le logiciel embarqué de notre l’objet sirène
 
@@ -147,6 +149,7 @@ Son but est de connaître et pouvoir comparer les impacts environnementaux d'un 
 Dans notre projet, il faudra alors prendre en compte le coût de fabrication des composants en termes de matières premières, de déchets et des émissions.
 
 ## Analyse des produits concurrents
+![alt text](Image/concurrents.png "Tableau comparatif des concurrents")
 
 ## Solutions utilisables pour localiser l’objet sirène
 
