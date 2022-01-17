@@ -168,7 +168,7 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 ![alt text](Image/git.png "git")
 
 **Plans de la boîte**
-![alt text](fichiers_resources/Boites_projet_iot.svg "Plans boîtiers")
+(fichiers_resources/Boites_projet_iot.svg "Plans boîtiers")
 
 	
 </div>
