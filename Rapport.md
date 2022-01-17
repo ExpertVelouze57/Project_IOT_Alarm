@@ -26,16 +26,17 @@ Pendant la procédure de “join”, 2 clés sont générées dynamiquement entr
 ![alt text](Image/RapportIOT.png "Architecture matérielle")
 
 ## Estimer le coût de la BOM de votre produit
-LoRa e5 Dev Board : 26.9$
-Adjustable PIR Motion Sensor : 8.7$
-Flame detector : 7.6$
-Piezo Buzzer : 2.1$
-Temp&Humi&Barometer Sensor (BME280) : 18.7$
-Grove - Button : 2.1$ x2 
-PCB : 4$ les 5
-Prix pour 5000 : 26.9*5000 + 8.7*5000 + 7.6*5000 + 2.1*5000 + 18.7*5000 + 2.1*2*5000 + 4*5000/5
-
-Prix total = $334500
+</dev>
+LoRa e5 Dev Board : 26.9$</br>
+Adjustable PIR Motion Sensor : 8.7$</br>
+Flame detector : 7.6$</br>
+Piezo Buzzer : 2.1$</br>
+Temp&Humi&Barometer Sensor (BME280) : 18.7$</br>
+Grove - Button : 2.1$ x2 </br>
+PCB : 4$ les 5</br>
+Prix pour 5000 : 26.9*5000 + 8.7*5000 + 7.6*5000 + 2.1*5000 + 18.7*5000 + 2.1*2*5000 + 4*5000/5</br>
+<div style="text-align: justify">
+Prix total = $334500</br>
 
        Cette estimation ne tient pas compte des réductions possibles avec une commande de gros, de la main d'œuvre, du transport,   et ne tient pas compte de la certification.
 
@@ -55,11 +56,11 @@ Prix total = $334500
 
        Lorsque l’alarme est déclenchée, un buzzer et une led effectue un signalement sonore et visuel. De plus, une information est transmise à un serveur permettant d'alerter des opérateurs immédiatement.
 
-       Afin de réaliser ceci nous pensons programmer une fonction main qui s’occupera de lancer plusieurs thread : 
-              - un pour le buzzer
-              - un pour le capteur de mouvement
-              - un pour la LED d’incendie
-              - un pour l’envoie des données
+       Afin de réaliser ceci nous pensons programmer une fonction main qui s’occupera de lancer plusieurs thread : </br>
+       - un pour le buzzer</br>
+       - un pour le capteur de mouvement</br>
+       - un pour la LED d’incendie</br>
+       - un pour l’envoie des données</br>
 
        Les interrupteurs seront sur des interruptions ce qui nous évitera des crée de thread inutilement. 
 
@@ -67,12 +68,12 @@ Prix total = $334500
 
        Pour la communication de l'ensemble des capteurs nous obtenons pour l’envoie de message entre les différents thread. Mais nous gardons la possibilité d’utiliser des variables globales si et seulement si une seule entité peut écrire à l'intérieur de celle-ci.
 
-       Nous avons décidés d’envoyer quelques informations en LoRa : 
-              - alarm : 0 ou 1 qui permet de savoir si l’alarme sonore est activé
-              - temp : valeur de la température de la pièce
-              - flame : 0 ou 1 qui permet de savoir si une flamme est détectée
-              - pres : 0 ou 1 qui permet de savoir si une personne est passée devant le détecteur depuis moins de 10 min
-              - btn_panic : 0 ou 1 qui permet de savoir si l'alarme a été activée par le bouton
+       Nous avons décidés d’envoyer quelques informations en LoRa : </br>
+              - alarm : 0 ou 1 qui permet de savoir si l’alarme sonore est activé</br>
+              - temp : valeur de la température de la pièce</br>
+              - flame : 0 ou 1 qui permet de savoir si une flamme est détectée</br>
+              - pres : 0 ou 1 qui permet de savoir si une personne est passée devant le détecteur depuis moins de 10 min</br>
+              - btn_panic : 0 ou 1 qui permet de savoir si l'alarme a été activée par le bouton</br>
 
        Pour finir en fonctionnement normal nous enverrons à intervalle régulier les informations afin de vérifier si le capteur est toujours présent et opérationnel.
 
@@ -80,7 +81,7 @@ Prix total = $334500
 
 ![alt text](Image/lpp_payload.png "lpp_cayenne")
 
-Source : Cayenne Low Power Payload | myDevices Documentation ("https://docs.mydevices.com/docs/lorawan/cayenne-lpp")
+Source : https://docs.mydevices.com/docs/lorawan/cayenne-lpp
 
 
        Nous envoyons cinq données : 4 de type digital et une température comme le montre la capture d’écran suivante : 
@@ -120,7 +121,7 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 
        Notre logiciel embarqué possède un grand nombre de lignes de code car il contient l'ensemble de l’os Riot ainsi que les drivers c’est pourquoi pour les métriques suivantes nous indiquerons uniquement ce que nous avons fait. Bien entendu la taille du binaire sera celle qui contient l'ensemble de notre logiciel embarqué.
 
-       Pour notre programme nous avons donc 8 fichiers, le main et l'ensemble des .h permettant de définir certaines données sur nos composants nous permettant de les modifier facilement.
+       Pour notre programme nous avons donc 8 fichiers, le main et l'ensemble des .h permettant de définir certaines données sur nos composants nous permettant de les modifier facilement.</br>
        Le tout est composé de 737 lignes. 
 
        Une fois le projet compilé il fait 54.2Ko
@@ -163,5 +164,11 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 
 ## Intégration cayenne
 
-## Annexe flow git
+## Annexes
+![alt text](Image/git.png "git")
+
+**Plans de la boîte**
+![alt text](fichiers_resources/Boites_projet_iot.svg "Plans boîtiers")
+
+	
 </div>
