@@ -79,6 +79,7 @@ Pour finir en fonctionnement normal nous enverrons à intervalle régulier les i
 ## Définir le format LPP des messages LoRaWAN uplink et downlink
 
 ![alt text](Image/lpp_payload.png "lpp_cayenne")
+
 Source : Cayenne Low Power Payload | myDevices Documentation ("https://docs.mydevices.com/docs/lorawan/cayenne-lpp")
 
 
@@ -144,7 +145,7 @@ En utilisant le calculateur donné, et en sélectionnant un capteur de mouvement
 
 L'analyse du cycle de vie (ACV) est une méthode d'évaluation normalisée (ISO 14040 et 14044) permettant de réaliser un bilan environnemental multicritère et multi-étape d'un système (produit, service, entreprise ou procédé) sur l'ensemble de son cycle de vie.
 Son but est de connaître et pouvoir comparer les impacts environnementaux d'un système tout au long de son cycle de vie, de l'extraction des matières premières nécessaires à sa fabrication à son traitement en fin de vie (mise en décharge, recyclage…), en passant par ses phases d'usage, d'entretien et de transport.
-
+![alt text](Image/acv.png "ACV")
 
 Dans notre projet, il faudra alors prendre en compte le coût de fabrication des composants en termes de matières premières, de déchets et des émissions.
 
@@ -160,3 +161,7 @@ D'autres solutions moins gourmandes en énergie telles que la triangulation avec
 ## Intégration cayenne
 
 ## Annexe flow git
+
+
+
+![alt text](Image/star-lord-doigt-d-honneur.gif "ACV")
