@@ -169,12 +169,13 @@ Ceci implique que dans notre main nous aurions une fonction de lecture permanent
 ![alt text](Image/DashBoard.png "DashBoard")
 
 ## Annexes
-![alt text](Image/git.png "git")
-
+[**Trace git**](Image/git.png "git")
 
 [**Plans de la boîte**](https://github.com/ExpertVelouze57/Project_IOT_Alarm/blob/master/fichiers_resources/Boite_projet_IOT.pdf)
 
 [**Accès DashBoard**](https://cayenne.mydevices.com/shared/61e591aff54d734bc90bff1f)
+
+[**Vidéo de démonstration**](https://youtu.be/jh-iHRJ_EU0)
 
 Auteurs
 **Mathis Vernay</br>
